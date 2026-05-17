@@ -52,7 +52,7 @@ function App() {
 
     try {
       const response = await axios.post(
-        'http://localhost:8000/api/resume/upload',
+        'https://ai-job-agent-lahi.onrender.com/api/resume/upload',
         formData
       );
 
@@ -96,7 +96,7 @@ function App() {
 
     try {
       const endpointName = platformName.toLowerCase();
-      const response = await axios.get(`http://localhost:8000/api/jobs/${endpointName}?role=${encodeURIComponent(roleToSearch)}`);
+      const response = await axios.get(`https://ai-job-agent-lahi.onrender.com/api/jobs/${endpointName}?role=${encodeURIComponent(roleToSearch)}`);
       if (response.data && response.data.success) {
         setFetchedJobs(response.data.jobs);
       }
@@ -136,7 +136,7 @@ function App() {
 
     try {
       const userData = { name: "Sai Teja", email: "example@gmail.com", phone: "9876543210" };
-      await axios.post('http://localhost:8000/api/apply/unstop', {
+      await axios.post('https://ai-job-agent-lahi.onrender.com/api/apply/unstop', {
         jobLink: job.link,
         resumeFilename,
         userData
