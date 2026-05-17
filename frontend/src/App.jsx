@@ -17,6 +17,7 @@ import {
   Terminal
 } from 'lucide-react';
 import { cn } from './lib/utils';
+import { API_ENDPOINTS } from './lib/api';
 
 function App() {
   const [file, setFile] = useState(null);
@@ -52,7 +53,7 @@ function App() {
 
     try {
       const response = await axios.post(
-        'https://ai-job-agent-lahi.onrender.com/api/resume/upload',
+        API_ENDPOINTS.RESUME_UPLOAD,
         formData
       );
 
@@ -96,7 +97,7 @@ function App() {
 
     try {
       const endpointName = platformName.toLowerCase();
-      const response = await axios.get(`https://ai-job-agent-lahi.onrender.com/api/jobs/${endpointName}?role=${encodeURIComponent(roleToSearch)}`);
+      const response = await axios.get(`${API_ENDPOINTS.JOBS[endpointName.toUpperCase()]}?role=${encodeURIComponent(roleToSearch)}`);
       if (response.data && response.data.success) {
         setFetchedJobs(response.data.jobs);
       }
@@ -136,7 +137,7 @@ function App() {
 
     try {
       const userData = { name: "Sai Teja", email: "example@gmail.com", phone: "9876543210" };
-      await axios.post('https://ai-job-agent-lahi.onrender.com/api/apply/unstop', {
+      await axios.post(API_ENDPOINTS.APPLY.UNSTOP, {
         jobLink: job.link,
         resumeFilename,
         userData
