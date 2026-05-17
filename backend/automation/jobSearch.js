@@ -9,7 +9,10 @@ const searchJobs = async (role) => {
   let browser;
   try {
     // Launch browser in headless mode for production
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+  headless: true,
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
     const page = await browser.newPage();
     
     // Set user agent to prevent basic bot blocking

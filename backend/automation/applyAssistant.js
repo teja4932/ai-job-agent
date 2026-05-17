@@ -16,7 +16,10 @@ const smartApplyUnstop = async (jobLink, userData, resumeFilename) => {
     console.log(`🤖 Starting Smart Apply for: ${jobLink}`);
     
     // Launch browser in visible mode so user can review
-    browser = await chromium.launch({ headless: false });
+    browser = await chromium.launch({
+  headless: false,
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
     const page = await browser.newPage();
     
     // Set viewport and user agent

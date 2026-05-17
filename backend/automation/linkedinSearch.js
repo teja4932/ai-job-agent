@@ -5,7 +5,10 @@ const searchJobs = async (role) => {
   try {
     // LinkedIn is aggressive, so we try to do a basic search without login, 
     // but heavily rely on the fallback if it hits a CAPTCHA or auth-wall immediately.
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+  headless: true,
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
     const page = await browser.newPage();
     
     await page.setExtraHTTPHeaders({
