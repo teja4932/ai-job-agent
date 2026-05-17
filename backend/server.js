@@ -17,7 +17,14 @@ const PORT = process.env.PORT || 8000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://ai-job-agent-omega.vercel.app'
+  ],
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
