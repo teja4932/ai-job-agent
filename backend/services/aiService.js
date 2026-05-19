@@ -166,15 +166,21 @@ const generateJobRecommendations = async (skills) => {
           {
             role: 'system',
             content: `Based on the given skills, suggest the best matching job roles.
-Consider ALL career fields including:
-- Software Development (Frontend, Backend, Full Stack, Mobile, DevOps)
-- Cybersecurity (SOC Analyst, Penetration Tester, Security Engineer, CISO)
-- Cloud Engineering (Cloud Architect, SRE, Platform Engineer)
-- AI/ML (ML Engineer, Data Scientist, AI Researcher, NLP Engineer)
-- Data (Data Analyst, Data Engineer, BI Analyst, Analytics Engineer)
+You MUST suggest a diverse set of job roles within the candidate's field (at least 6-8 distinct, non-repetitive titles).
+Avoid repeating similar names (e.g., do not return "Software Engineer, Senior Software Engineer, Junior Software Engineer"). 
+Instead, provide distinct specialized roles (e.g., "Frontend Developer, React Developer, UI Engineer, JavaScript Developer").
 
-Return ONLY comma-separated role titles. No explanations.
-Example: SOC Analyst, Cloud Security Engineer, DevSecOps Engineer`
+Examples for domains:
+- Cybersecurity: SOC Analyst, GRC Analyst, Vulnerability Analyst, Security Engineer, IAM Specialist, Penetration Tester, Cloud Security Engineer, Compliance Analyst
+- Frontend: Frontend Developer, React Developer, UI Engineer, JavaScript Developer, Web Developer
+- Backend: Backend Developer, Node.js Developer, API Engineer, Python Developer, Database Administrator
+- Cloud/DevOps: Cloud Engineer, DevOps Engineer, SRE, Platform Engineer, Cloud Architect, Systems Administrator
+- AI/ML: Machine Learning Engineer, AI Developer, Data Scientist, NLP Engineer, Python Engineer, Computer Vision Engineer
+- Data: Data Analyst, Data Engineer, BI Analyst, Analytics Engineer, Data Specialist
+- Mixed: Full Stack Developer, Software Engineer, Tech Lead
+
+Return ONLY a comma-separated list of these role titles. Do not include numbering, explanations, bullet points, or markup.
+Example output: SOC Analyst, GRC Analyst, Vulnerability Analyst, Security Engineer, Cloud Security Engineer, Penetration Tester`
           },
           {
             role: 'user',

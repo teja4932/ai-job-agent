@@ -33,6 +33,7 @@ function App() {
   const [fetchedJobs, setFetchedJobs] = useState([]);
   const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [visibleJobsCount, setVisibleJobsCount] = useState(6);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Smart Apply State
   const [resumeFilename, setResumeFilename] = useState(null);
@@ -63,11 +64,15 @@ function App() {
           ? response.data.skills.split(',')
           : []
       );
-      setJobs(
-        response.data.jobs
-          ? response.data.jobs.split(',')
-          : []
-      );
+      
+      const parsedJobs = response.data.jobs
+        ? response.data.jobs.split(',').map(j => j.trim())
+        : [];
+      setJobs(parsedJobs);
+      if (parsedJobs.length > 0) {
+        setSearchQuery(parsedJobs[0]);
+      }
+      
       setResumeFilename(response.data.resumeFilename);
     } catch (error) {
       console.error(error);
@@ -78,23 +83,17 @@ function App() {
     }
   };
 
-  const handlePlatformClick = async (platformName) => {
+  const fetchJobs = async (platformName, query) => {
     if (platformName === 'Indeed') {
       alert(`Integration with ${platformName} coming in the next phase!`);
       return;
     }
 
-    const roleToSearch = jobs.length > 0 ? jobs[0] : 'Software Engineer';
+    const roleToSearch = query || searchQuery || (jobs.length > 0 ? jobs[0] : 'Software Engineer');
     
-    setSelectedPlatform(platformName);
     setIsFetchingJobs(true);
     setFetchedJobs([]); // clear previous jobs
     setVisibleJobsCount(6); // reset visible count
-    
-    // Smooth scroll to jobs section
-    setTimeout(() => {
-      document.getElementById('jobs-section')?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
 
     try {
       const endpointName = platformName.toLowerCase();
@@ -108,6 +107,35 @@ function App() {
     } finally {
       setIsFetchingJobs(false);
     }
+  };
+
+  const handlePlatformClick = async (platformName) => {
+    setSelectedPlatform(platformName);
+    
+    // Smooth scroll to jobs section
+    setTimeout(() => {
+      document.getElementById('jobs-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+
+    const query = searchQuery || (jobs.length > 0 ? jobs[0] : 'Software Engineer');
+    await fetchJobs(platformName, query);
+  };
+
+  const handleRoleClick = async (role) => {
+    const trimmedRole = role.trim();
+    setSearchQuery(trimmedRole);
+    
+    const platform = selectedPlatform || 'LinkedIn';
+    if (!selectedPlatform) {
+      setSelectedPlatform('LinkedIn');
+    }
+
+    // Smooth scroll to jobs section
+    setTimeout(() => {
+      document.getElementById('jobs-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+
+    await fetchJobs(platform, trimmedRole);
   };
 
   const handleSmartApply = async (job) => {
@@ -300,25 +328,44 @@ function App() {
                   <h2 className="text-2xl font-bold">Recommended Roles</h2>
                 </div>
                 <div className="space-y-3">
-                  {(showAllJobs ? jobs : jobs.slice(0, 6)).map((job, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="glass-card p-4 rounded-xl flex items-center justify-between group hover:border-blue-500/30 transition-all"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
-                          <Briefcase className="w-5 h-5" />
+                   {(showAllJobs ? jobs : jobs.slice(0, 6)).map((job, i) => {
+                    const trimmedJob = job.trim();
+                    const isSelected = searchQuery.toLowerCase() === trimmedJob.toLowerCase();
+                    return (
+                      <motion.button
+                        key={i}
+                        onClick={() => handleRoleClick(trimmedJob)}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className={cn(
+                          "w-full text-left glass-card p-4 rounded-xl flex items-center justify-between group transition-all duration-200 cursor-pointer active:scale-[0.99]",
+                          isSelected 
+                            ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/10" 
+                            : "hover:border-blue-500/30 hover:bg-slate-900/80"
+                        )}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                            isSelected ? "bg-blue-600 text-white" : "bg-blue-500/10 text-blue-400"
+                          )}>
+                            <Briefcase className="w-5 h-5" />
+                          </div>
+                          <span className={cn(
+                            "font-semibold text-lg transition-colors",
+                            isSelected ? "text-blue-400" : "text-slate-200 group-hover:text-white"
+                          )}>{trimmedJob}</span>
                         </div>
-                        <span className="font-semibold text-lg">{job.trim()}</span>
-                      </div>
-                      <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <CheckCircle2 className="w-5 h-5" />
-                      </div>
-                    </motion.div>
-                  ))}
+                        <div className={cn(
+                          "transition-all duration-200",
+                          isSelected ? "opacity-100 text-blue-400 scale-100" : "opacity-0 group-hover:opacity-100 text-slate-500 scale-90 group-hover:scale-100"
+                        )}>
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                      </motion.button>
+                    );
+                  })}
                   {jobs.length > 6 && (
                     <button
                       onClick={() => setShowAllJobs(!showAllJobs)}
@@ -365,14 +412,45 @@ function App() {
 
         {/* 6. Jobs Display Section (Real / Mock / Loaders) */}
         <section id="jobs-section" className="space-y-8 min-h-[400px]">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-3xl font-bold">
               {selectedPlatform ? `${selectedPlatform} Opportunities` : "Featured Opportunities"}
             </h2>
-            <div className="px-4 py-2 bg-slate-800 rounded-lg text-sm text-slate-400">
+            <div className="px-4 py-2 bg-slate-800 rounded-lg text-sm text-slate-400 self-start md:self-auto">
               Showing matches based on AI profile
             </div>
           </div>
+
+          {selectedPlatform && (
+            <div className="glass-card p-3 rounded-2xl border border-slate-800 flex flex-col sm:flex-row gap-3 items-center justify-between">
+              <div className="flex items-center gap-3 w-full sm:w-auto px-2">
+                <Search className="w-5 h-5 text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      fetchJobs(selectedPlatform, searchQuery);
+                    }
+                  }}
+                  placeholder="Enter role (e.g. Frontend Developer, GRC Analyst)..."
+                  className="bg-transparent text-white placeholder-slate-500 w-full focus:outline-none text-base"
+                />
+              </div>
+              <button
+                onClick={() => fetchJobs(selectedPlatform, searchQuery)}
+                disabled={isFetchingJobs}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold transition-all flex items-center justify-center gap-2 text-sm shrink-0 active:scale-95 shadow-lg shadow-blue-500/20"
+              >
+                {isFetchingJobs ? (
+                  <div className="w-4.5 h-4.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>Search 🔍</>
+                )}
+              </button>
+            </div>
+          )}
           
           {isFetchingJobs ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
