@@ -199,12 +199,11 @@ const getMockDescriptionForRole = (title) => {
 
 const getFallbackJobs = (role) => {
   const defaultRole = (role && role.length > 3) ? role : 'Software Engineer';
-  const companies = ['Tech Innovators India', 'Global Systems Inc.', 'NextGen Solutions', 'CloudScale Technologies', 'DataCorp', 'StartupHub', 'InnovateX', 'CyberShield', 'DataMinds', 'QuantumSoft', 'AeroCloud', 'DevStudio'];
   const locations = ['Bangalore', 'Remote', 'Hyderabad', 'Pune', 'Mumbai', 'Remote', 'Chennai', 'Delhi', 'Remote', 'Bangalore', 'Remote', 'Pune'];
   const levels = ['Senior', '', 'Associate', 'Lead', 'Junior', 'Staff', 'Principal', 'Consultant', 'Intern', '', 'Senior', 'Associate'];
   return Array.from({ length: 12 }, (_, i) => {
     const title = `${levels[i]} ${defaultRole}`.trim();
-    const company = companies[i];
+    const company = 'Various Companies';
     return {
       title,
       company,
