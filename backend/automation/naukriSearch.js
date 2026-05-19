@@ -5,7 +5,18 @@ const isValidJobLink = (link, platformDomain) => {
   try {
     const url = new URL(link);
     if (!url.href.includes(platformDomain)) return false;
-    if (url.pathname === '/' || url.pathname === '') return false;
+    
+    const pathname = url.pathname.toLowerCase();
+    const cleanPath = pathname.replace(/\/+$/, '');
+    
+    if (cleanPath === '' || cleanPath === '/') return false;
+    
+    // Reject generic main search directory pages
+    if (cleanPath === '/job-listings' || cleanPath === '/jobs' || cleanPath === '/jobs-in-india') return false;
+    
+    // Must be a direct detail page
+    if (!pathname.includes('/job-listings-')) return false;
+    
     return true;
   } catch (e) {
     return false;
@@ -94,9 +105,12 @@ const searchJobs = async (role) => {
         if (ignoredKeywords.some(kw => lowerTitle.includes(kw))) continue;
         if (!priorityKeywords.some(kw => lowerTitle.includes(kw))) continue;
 
-        const companyEl = card.querySelector('.companyInfo, .subTitle, .comp-name');
+                const companyEl = card.querySelector('.companyInfo, .subTitle, .comp-name');
         const locationEl = card.querySelector('.location, .locWdth, .loc-wrap');
         const salaryEl = card.querySelector('.salary, .sal, .sal-wrap');
+        
+        const descEl = card.querySelector('.job-desc, .jobDescription, p, .snippet, [class*="desc"]');
+        const description = descEl ? descEl.innerText.trim() : card.innerText.replace(title, '').trim().substring(0, 180) + '...';
 
         seenLinks.add(href);
         seenTitles.add(title);
@@ -106,6 +120,7 @@ const searchJobs = async (role) => {
           location: locationEl ? locationEl.innerText.trim() : 'Remote / India',
           salary: salaryEl ? salaryEl.innerText.trim() : 'Not Disclosed',
           link: href,
+          description,
           platform: 'Naukri',
           matchPercentage: Math.floor(Math.random() * 10) + 85
         });
@@ -135,21 +150,58 @@ const searchJobs = async (role) => {
   }
 };
 
+const getMockDescriptionForRole = (title) => {
+  const t = title.toLowerCase();
+  if (t.includes('grc') || t.includes('compliance') || t.includes('risk') || t.includes('governance') || t.includes('audit')) {
+    return 'Required GRC Analyst with experience in ISO 27001 audit controls, compliance policy management, risk management, and governance. Knowledge of IAM, GDPR, NIST framework, and security audits is mandatory.';
+  }
+  if (t.includes('soc') || t.includes('security operations') || t.includes('security analyst') || t.includes('threat') || t.includes('incident')) {
+    return 'We are hiring a Security Analyst to monitor SIEM alerts (Splunk), perform incident response, log analysis, threat hunting, vulnerability assessment, and firewall policy configuration.';
+  }
+  if (t.includes('cloud security') || t.includes('iam') || t.includes('identity')) {
+    return 'Looking for a Cloud Security / IAM Engineer to manage AWS IAM roles, cloud access controls, Active Directory, compliance guardrails, Okta, and cloud security posture (CSPM).';
+  }
+  if (t.includes('cybersecurity') || t.includes('vulnerability') || t.includes('penetration')) {
+    return 'Seeking a Cybersecurity Engineer with expertise in vulnerability scanning, penetration testing (OWASP Top 10), vulnerability remediation, and corporate security architecture.';
+  }
+  if (t.includes('react') || t.includes('frontend') || t.includes('web') || (t.includes('developer') && (t.includes('ui') || t.includes('next')))) {
+    return 'Hiring a Frontend Developer proficient in React, Next.js, Tailwind CSS, TypeScript, and state management (Redux). Responsible for building responsive UI components and frontend architecture.';
+  }
+  if (t.includes('node') || t.includes('backend') || t.includes('sde') || t.includes('developer')) {
+    return 'We need a Backend Developer skilled in Node.js, Express, REST APIs, SQL/NoSQL databases (PostgreSQL, MongoDB), and system integration. Knowledge of cloud deployments (AWS, Docker) is a plus.';
+  }
+  if (t.includes('devops') || t.includes('cloud') || t.includes('aws') || t.includes('infrastructure')) {
+    return 'DevOps Engineer needed to build automated CI/CD pipelines, Docker containers, Kubernetes orchestration, Terraform Infrastructure as Code, AWS cloud management, and Prometheus monitoring.';
+  }
+  if (t.includes('data analyst') || t.includes('analyst') || t.includes('business')) {
+    return 'Hiring a Data Analyst to translate data into actionable insights using SQL, Excel, Tableau, and PowerBI dashboards. Build reports and perform statistical analysis.';
+  }
+  if (t.includes('ai') || t.includes('ml') || t.includes('machine learning') || t.includes('data scientist')) {
+    return 'Seeking an AI/ML Engineer to train deep learning models, deploy neural networks, use PyTorch/TensorFlow, Python pipelines, NLP models, and generative AI LLMs.';
+  }
+  return 'Excellent opportunity for a software professional. Candidate should possess strong problem-solving skills, technology background, programming skills, and interest in domain applications.';
+};
+
 const getFallbackJobs = (role) => {
   const defaultRole = (role && role.length > 3) ? role : 'Software Engineer';
   const companies = ['Tech Innovators India', 'Global Systems Inc.', 'NextGen Solutions', 'CloudScale Technologies', 'DataCorp', 'StartupHub', 'InnovateX', 'CyberShield', 'DataMinds', 'QuantumSoft', 'AeroCloud', 'DevStudio'];
   const locations = ['Bangalore', 'Remote', 'Hyderabad', 'Pune', 'Mumbai', 'Remote', 'Chennai', 'Delhi', 'Remote', 'Bangalore', 'Remote', 'Pune'];
   const levels = ['Senior', '', 'Associate', 'Lead', 'Junior', 'Staff', 'Principal', 'Consultant', 'Intern', '', 'Senior', 'Associate'];
-  return Array.from({ length: 12 }, (_, i) => ({
-    title: `${levels[i]} ${defaultRole}`.trim(),
-    company: companies[i],
-    location: locations[i],
-    salary: `₹${(8 + (i * 1.5)).toFixed(1)}L - ₹${(12 + (i * 2)).toFixed(1)}L`,
-    link: `https://www.naukri.com/${encodeURIComponent(defaultRole.toLowerCase().replace(/\s+/g, '-'))}-jobs`,
-    platform: 'Naukri',
-    matchPercentage: Math.floor(Math.random() * 10) + 85,
-    isFallback: true
-  }));
+  return Array.from({ length: 12 }, (_, i) => {
+    const title = `${levels[i]} ${defaultRole}`.trim();
+    const company = companies[i];
+    return {
+      title,
+      company,
+      location: locations[i],
+      salary: `₹${(8 + (i * 1.5)).toFixed(1)}L - ₹${(12 + (i * 2)).toFixed(1)}L`,
+      link: `https://www.naukri.com/jobs-in-india?searchType=searchLink&keyword=${encodeURIComponent(title + " " + company)}`,
+      description: getMockDescriptionForRole(title),
+      platform: 'Naukri',
+      matchPercentage: Math.floor(Math.random() * 10) + 85,
+      isFallback: true
+    };
+  });
 };
 
 module.exports = { searchJobs };

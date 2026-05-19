@@ -97,7 +97,8 @@ function App() {
 
     try {
       const endpointName = platformName.toLowerCase();
-      const response = await axios.get(`${API_ENDPOINTS.JOBS[endpointName.toUpperCase()]}?role=${encodeURIComponent(roleToSearch)}`);
+      const skillsParam = skills && skills.length > 0 ? `&skills=${encodeURIComponent(skills.join(','))}` : '';
+      const response = await axios.get(`${API_ENDPOINTS.JOBS[endpointName.toUpperCase()]}?role=${encodeURIComponent(roleToSearch)}${skillsParam}`);
       if (response.data && response.data.success) {
         setFetchedJobs(response.data.jobs);
       }
@@ -479,7 +480,7 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {fetchedJobs.slice(0, visibleJobsCount).map((job, i) => (
                   <motion.div 
-                    key={i}
+                    key={`${job.platform}-${job.link || ''}-${job.title}-${job.company}-${i}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
@@ -498,9 +499,35 @@ function App() {
                       <div>
                         <h3 className="text-xl font-bold mb-1 line-clamp-2">{job.title}</h3>
                         <p className="text-slate-400 text-sm line-clamp-1">{job.company}</p>
-                        <p className="text-slate-500 text-xs mt-1">{job.location}</p>
+                        <p className="text-slate-500 text-xs mt-1 mb-3">{job.location}</p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      
+                      {job.description && (
+                        <p className="text-slate-300 text-xs line-clamp-3 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80 leading-relaxed font-sans">
+                          {job.description}
+                        </p>
+                      )}
+                      
+                      {job.matchedSkills && job.matchedSkills.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                          <p className="text-[10px] uppercase font-bold tracking-wider text-blue-400 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                            Matched because:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {job.matchedSkills.map((skill, idx) => (
+                              <span 
+                                key={idx} 
+                                className="px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300 text-[10px] border border-blue-500/20 font-semibold"
+                              >
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 pt-2">
                         <span className="px-2 py-1 rounded bg-slate-800 text-[10px] uppercase tracking-wider font-bold text-slate-500">
                           {job.salary && job.salary !== 'Not Disclosed' ? job.salary : 'Salary Undisclosed'}
                         </span>
