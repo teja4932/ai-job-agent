@@ -195,7 +195,7 @@ const getFallbackJobs = (role) => {
       company,
       location: locations[i],
       salary: `₹${(8 + (i * 1.5)).toFixed(1)}L - ₹${(12 + (i * 2)).toFixed(1)}L`,
-      link: `https://www.naukri.com/jobs-in-india?searchType=searchLink&keyword=${encodeURIComponent(title)}`,
+      link: `https://www.naukri.com/jobs-in-india?searchType=searchLink&keyword=${encodeURIComponent('"' + title + '"')}`,
       description: getMockDescriptionForRole(title),
       platform: 'Naukri',
       matchPercentage: Math.floor(Math.random() * 10) + 85,

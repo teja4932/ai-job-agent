@@ -210,7 +210,7 @@ const getFallbackJobs = (role) => {
       company,
       location: locations[i],
       salary: `₹${(8 + (i * 1.5)).toFixed(1)}L - ₹${(12 + (i * 2)).toFixed(1)}L`,
-      link: `https://www.google.com/search?q=site:unstop.com/o/+OR+site:unstop.com/opportunity/+${encodeURIComponent(title)}`,
+      link: `https://www.google.com/search?q=site:unstop.com/o/+OR+site:unstop.com/opportunity/+${encodeURIComponent('"' + title + '"')}`,
       description: getMockDescriptionForRole(title),
       platform: 'Unstop',
       matchPercentage: Math.floor(Math.random() * 10) + 85,
