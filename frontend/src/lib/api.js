@@ -3,7 +3,9 @@
  * All backend API calls use this base URL
  */
 
-const API_BASE_URL = 'https://ai-job-agent-2eew.onrender.com';
+const API_BASE_URL = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : 'https://ai-job-agent-2eew.onrender.com';
 
 export const API_ENDPOINTS = {
   // Resume Upload & Analysis

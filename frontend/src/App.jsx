@@ -70,10 +70,11 @@ function App() {
       );
       setResumeFilename(response.data.resumeFilename);
     } catch (error) {
-      console.log(error);
-      alert('Upload failed');
+      console.error(error);
+      const errMsg = error.response?.data?.message || 'Upload failed. Please make sure the PDF is text-based and try again.';
+      alert(errMsg);
     } finally {
-      setIsFetchingJobs(false);
+      setIsUploading(false);
     }
   };
 
@@ -110,6 +111,11 @@ function App() {
   };
 
   const handleSmartApply = async (job) => {
+    if (job.isFallback) {
+      alert(`Smart Apply requires a specific, direct job listing URL. This link is a search page fallback because direct scraping was rate-limited or timed out.`);
+      return;
+    }
+
     if (job.platform !== 'Unstop') {
       alert(`Smart Apply for ${job.platform} is coming in the next phase!`);
       return;
@@ -436,6 +442,11 @@ function App() {
                       href={job.link}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (job.isFallback) {
+                          alert(`This is a search page fallback because direct scraping for "${job.title}" timed out or was rate-limited. You will be redirected to the platform's job search page.`);
+                        }
+                      }}
                       className="flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700 font-bold hover:bg-slate-700 hover:border-blue-500/50 hover:text-white transition-all flex items-center justify-center gap-2 text-sm"
                     >
                       Manual

@@ -33,7 +33,6 @@ const upload = multer({
   storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
-    // Only accept PDF files
     if (file.mimetype !== 'application/pdf' && !file.originalname.endsWith('.pdf')) {
       cb(new Error('Only PDF files are allowed'), false);
     } else {
@@ -43,106 +42,247 @@ const upload = multer({
 });
 
 /**
+ * Normalize extracted PDF text:
+ * - Decode URI components
+ * - Fix broken spacing from multi-column layouts
+ * - Remove excessive whitespace while preserving line structure
+ */
+const normalizeResumeText = (rawText) => {
+  try {
+    // Fix common pdf2json encoding artifacts
+    let text = rawText
+      .replace(/\s{3,}/g, ' ')           // collapse 3+ spaces to 1
+      .replace(/([a-z])([A-Z])/g, '$1 $2') // fix camelCase word splits (e.g. "ReactNode" → "React Node")
+      .replace(/(\w)-\n(\w)/g, '$1$2')    // rejoin hyphenated line breaks
+      .replace(/\n{3,}/g, '\n\n')         // max 2 consecutive newlines
+      .trim();
+    return text;
+  } catch (e) {
+    return rawText;
+  }
+};
+
+/**
+ * Extract and reconstruct text from pdf2json page data
+ * Handles multi-column layouts by sorting text items by Y then X position
+ */
+const extractTextFromPages = (pdfData) => {
+  let allTextItems = [];
+
+  pdfData.Pages.forEach((page, pageIndex) => {
+    if (!page.Texts) return;
+
+    page.Texts.forEach((textItem) => {
+      if (!textItem.R || textItem.R.length === 0) return;
+      textItem.R.forEach((r) => {
+        try {
+          const decoded = decodeURIComponent(r.T);
+          if (decoded && decoded.trim().length > 0) {
+            allTextItems.push({
+              text: decoded,
+              x: textItem.x || 0,
+              y: textItem.y || 0,
+              page: pageIndex
+            });
+          }
+        } catch (e) {
+          // Skip malformed URI encoded text
+        }
+      });
+    });
+  });
+
+  // Sort by page, then Y position (top to bottom), then X (left to right)
+  allTextItems.sort((a, b) => {
+    if (a.page !== b.page) return a.page - b.page;
+    const yDiff = Math.round(a.y) - Math.round(b.y);
+    if (Math.abs(yDiff) > 0.5) return yDiff;
+    return a.x - b.x;
+  });
+
+  // Group items by approximate Y row and join them
+  let result = '';
+  let lastY = -999;
+  let lastPage = -1;
+
+  for (const item of allTextItems) {
+    if (item.page !== lastPage) {
+      result += '\n\n--- Page ' + (item.page + 1) + ' ---\n';
+      lastPage = item.page;
+      lastY = -999;
+    }
+
+    const yDelta = Math.abs(item.y - lastY);
+    if (yDelta > 0.8) {
+      // New line
+      result += '\n' + item.text;
+    } else {
+      // Same line — add space separator
+      result += ' ' + item.text;
+    }
+    lastY = item.y;
+  }
+
+  return result;
+};
+
+/**
+ * Safely delete a file without throwing
+ */
+const safeUnlink = (filePath) => {
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (e) {
+    console.error('⚠️ File cleanup error:', e.message);
+  }
+};
+
+/**
  * POST /api/resume/upload
  * Upload and analyze a resume PDF
  */
 router.post('/upload', upload.single('resume'), async (req, res) => {
-  try {
-    // Validate file upload
-    if (!req.file) {
-      return res.status(400).json({
+  // Multer error handler
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: 'No file uploaded. Please select a PDF resume.'
+    });
+  }
+
+  const filePath = req.file.path;
+
+  // Overall request timeout — prevent frontend from hanging forever
+  const PARSE_TIMEOUT_MS = 45000;
+  let responded = false;
+
+  const timeoutHandle = setTimeout(() => {
+    if (!responded) {
+      responded = true;
+      console.error('❌ Resume parse timeout exceeded');
+      safeUnlink(filePath);
+      return res.status(408).json({
         success: false,
-        message: 'No file uploaded. Please select a PDF resume.'
+        message: 'Resume parsing timed out. Please try a smaller or simpler PDF.'
       });
     }
+  }, PARSE_TIMEOUT_MS);
 
-    const filePath = req.file.path;
-    const pdfParser = new PDFParser();
+  try {
+    const pdfParser = new PDFParser(null, 1); // suppress pdf2json internal logs
 
     // Handle PDF parsing errors
     pdfParser.on('pdfParser_dataError', (errData) => {
-      console.error('❌ PDF Parse Error:', errData.parserError);
-      
-      // Clean up failed file
-      fs.unlink(filePath, (err) => {
-        if (err) console.error('File cleanup error:', err);
-      });
+      if (responded) return;
+      responded = true;
+      clearTimeout(timeoutHandle);
+
+      console.error('❌ PDF Parse Error:', errData.parserError || errData);
+      safeUnlink(filePath);
 
       return res.status(400).json({
         success: false,
-        message: 'Failed to parse PDF. Please ensure it is a valid PDF file.'
+        message: 'Could not parse this PDF. If it is a scanned/image-based PDF, text extraction is not supported. Please use a text-based PDF.'
       });
     });
 
     // Handle successful PDF parsing
     pdfParser.on('pdfParser_dataReady', async (pdfData) => {
-      try {
-        // Extract text from PDF
-        let extractedText = '';
-        pdfData.Pages.forEach((page) => {
-          if (page.Texts) {
-            page.Texts.forEach((text) => {
-              text.R.forEach((r) => {
-                extractedText += decodeURIComponent(r.T) + ' ';
-              });
-            });
-          }
-        });
+      if (responded) return;
 
-        if (!extractedText || extractedText.trim().length === 0) {
-          fs.unlink(filePath, (err) => {
-            if (err) console.error('File cleanup error:', err);
+      try {
+        const pageCount = pdfData.Pages ? pdfData.Pages.length : 0;
+        console.log(`📄 PDF loaded: ${pageCount} pages`);
+
+        // Extract text using position-aware method
+        let extractedText = extractTextFromPages(pdfData);
+
+        // Fallback to simple extraction if position-aware returns nothing
+        if (!extractedText || extractedText.trim().length < 50) {
+          console.log('⚠️ Position-aware extraction returned little text, trying simple mode...');
+          let simpleText = '';
+          pdfData.Pages.forEach((page) => {
+            if (page.Texts) {
+              page.Texts.forEach((text) => {
+                text.R.forEach((r) => {
+                  try {
+                    simpleText += decodeURIComponent(r.T) + ' ';
+                  } catch (e) {
+                    simpleText += r.T + ' ';
+                  }
+                });
+              });
+              simpleText += '\n';
+            }
           });
-          
+          extractedText = simpleText;
+        }
+
+        // Normalize the text
+        extractedText = normalizeResumeText(extractedText);
+
+        // Check if meaningful text was extracted
+        if (!extractedText || extractedText.trim().length < 50) {
+          responded = true;
+          clearTimeout(timeoutHandle);
+          safeUnlink(filePath);
+
+          console.error('❌ Resume text too short — likely scanned/image PDF');
           return res.status(400).json({
             success: false,
-            message: 'No text could be extracted from the PDF.'
+            message: 'No readable text could be extracted from this PDF. This may be a scanned or image-based resume. Please use a text-based PDF created with Word, Google Docs, or similar tools.'
           });
         }
 
-        console.log('📄 Resume uploaded and text extracted');
+        const charCount = extractedText.trim().length;
+        console.log(`📄 Resume text extracted: ${charCount} characters, ${pageCount} pages`);
 
-        // Extract skills using AI
+        // Extract skills using AI (with fallback)
         const skills = await extractSkills(extractedText);
-        
-        // Generate job recommendations using AI
-        const jobs = await generateJobRecommendations(skills);
 
-        // Return results
+        // Generate job recommendations using AI
+        const jobRecommendations = await generateJobRecommendations(skills);
+
+        responded = true;
+        clearTimeout(timeoutHandle);
+
         return res.json({
           success: true,
           extractedText: extractedText.trim(),
           skills: skills || '',
-          jobs: jobs || '',
+          jobs: jobRecommendations || '',
           resumeFilename: req.file.filename,
-          filesize: req.file.size
+          filesize: req.file.size,
+          pages: pageCount
         });
+
       } catch (error) {
+        if (responded) return;
+        responded = true;
+        clearTimeout(timeoutHandle);
+
         console.error('❌ Resume Processing Error:', error.message);
-        
-        // Clean up file on processing error
-        fs.unlink(filePath, (err) => {
-          if (err) console.error('File cleanup error:', err);
-        });
+        safeUnlink(filePath);
 
         return res.status(500).json({
           success: false,
-          message: 'Error processing resume. Please try again.'
+          message: 'Error processing resume. AI extraction failed. Please try again.'
         });
       }
     });
 
-    // Load PDF for parsing
+    // Start parsing
     pdfParser.loadPDF(filePath);
+
   } catch (error) {
+    if (responded) return;
+    responded = true;
+    clearTimeout(timeoutHandle);
+
     console.error('❌ Upload Route Error:', error.message);
-    
-    // Clean up file on error
-    if (req.file) {
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error('File cleanup error:', err);
-      });
-    }
+    safeUnlink(filePath);
 
     return res.status(500).json({
       success: false,
